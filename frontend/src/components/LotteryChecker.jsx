@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, Search, Table2 } from "lucide-react";
 
 const stations = [
@@ -71,6 +71,7 @@ function LotteryChecker() {
   const [board, setBoard] = useState(null);
   const [availableStations, setAvailableStations] = useState([]);
   const [now, setNow] = useState(new Date());
+  const tableScrollRef = useRef(null);
 
   const canCheck = useMemo(() => number.trim().length > 0, [number]);
 
@@ -221,7 +222,33 @@ function LotteryChecker() {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (!result?.hit || !result.best_prize) {
+      return;
+    }
+
+    const container = tableScrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    const target = container.querySelector(`[data-prize-row="${result.best_prize}"]`);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [result]);
+
   const selectedStationInfo = stationAvailabilityMap[station];
+  const matchedPrizeSet = useMemo(
+    () => new Set(result?.hit ? result.prizes || [] : []),
+    [result]
+  );
+
+  function isMatchedNumber(value) {
+    const ticket = number.trim();
+    const target = String(value);
+    return ticket === target || (ticket.length >= target.length && ticket.endsWith(target));
+  }
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(1200px_500px_at_10%_0%,#c7f0ff_0%,transparent_55%),radial-gradient(900px_500px_at_90%_100%,#ffe6b5_0%,transparent_58%),linear-gradient(135deg,#e7f4ff_0%,#eef2f7_40%,#f6efe2_100%)] px-4 py-6">
@@ -399,7 +426,10 @@ function LotteryChecker() {
                 </span>
               </div>
 
-              <div className="max-h-[430px] overflow-auto rounded-xl border border-slate-300 bg-white">
+              <div
+                ref={tableScrollRef}
+                className="max-h-[430px] overflow-auto rounded-xl border border-slate-300 bg-white"
+              >
                 <table className="w-full border-collapse">
                   <thead className="sticky top-0 bg-slate-200">
                     <tr>
@@ -414,13 +444,42 @@ function LotteryChecker() {
                   <tbody>
                     {prizeOrder.map((prize) => {
                       const numbers = board?.[prize] || [];
+                      const rowHit = matchedPrizeSet.has(prize);
                       return (
-                        <tr key={prize} className="align-top">
-                          <td className="border-b border-slate-200 px-3 py-2 text-base font-semibold text-slate-700">
+                        <tr key={prize} data-prize-row={prize} className="align-top">
+                          <td
+                            className={`border-b border-slate-200 px-3 py-2 text-base font-semibold ${
+                              rowHit ? "bg-emerald-50 text-emerald-800" : "text-slate-700"
+                            }`}
+                          >
                             {prize}
                           </td>
-                          <td className="border-b border-slate-200 px-3 py-2 text-lg text-slate-700">
-                            {numbers.length > 0 ? numbers.join(" - ") : "-"}
+                          <td
+                            className={`border-b border-slate-200 px-3 py-2 text-lg ${
+                              rowHit ? "bg-emerald-50 text-emerald-800" : "text-slate-700"
+                            }`}
+                          >
+                            {numbers.length > 0 ? (
+                              <div className="flex flex-wrap gap-2">
+                                {numbers.map((item) => {
+                                  const numberHit = rowHit && isMatchedNumber(item);
+                                  return (
+                                    <span
+                                      key={`${prize}-${item}`}
+                                      className={`rounded-md px-2 py-0.5 text-base ${
+                                        numberHit
+                                          ? "bg-emerald-200 font-semibold text-emerald-900"
+                                          : "bg-transparent"
+                                      }`}
+                                    >
+                                      {item}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              "-"
+                            )}
                           </td>
                         </tr>
                       );
