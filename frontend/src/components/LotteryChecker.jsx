@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw, Search, Table2 } from "lucide-react";
+import { Search, Table2, X } from "lucide-react";
 
 const stations = [
   { value: "xsag", label: "An Giang (xsag)" },
@@ -27,9 +27,43 @@ const stations = [
 
 const prizeOrder = ["DB", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "KK"];
 const stationValues = new Set(stations.map((s) => s.value));
+const prizeAmounts = {
+  DB: 2000000000,
+  G1: 30000000,
+  G2: 15000000,
+  G3: 10000000,
+  G4: 3000000,
+  G5: 1000000,
+  G6: 400000,
+  G7: 200000,
+  G8: 100000,
+  KK: 50000000,
+};
+const prizeLabels = {
+  DB: "Giải đặc biệt",
+  G1: "Giải nhất",
+  G2: "Giải nhì",
+  G3: "Giải ba",
+  G4: "Giải tư",
+  G5: "Giải năm",
+  G6: "Giải sáu",
+  G7: "Giải bảy",
+  G8: "Giải tám",
+  KK: "Giải khuyến khích",
+};
+const CRAWL_SWITCH_HOUR = 17;
+const CRAWL_SWITCH_MINUTE = 30;
 
-function getToday() {
+function getDefaultDate() {
   const now = new Date();
+  const switched =
+    now.getHours() > CRAWL_SWITCH_HOUR ||
+    (now.getHours() === CRAWL_SWITCH_HOUR && now.getMinutes() >= CRAWL_SWITCH_MINUTE);
+
+  if (!switched) {
+    now.setDate(now.getDate() - 1);
+  }
+
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
@@ -48,6 +82,14 @@ function formatRealtime(value) {
   }).format(value);
 }
 
+function formatCurrency(value) {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 async function readJsonSafe(response) {
   const text = await response.text();
   try {
@@ -58,11 +100,11 @@ async function readJsonSafe(response) {
 }
 
 function LotteryChecker() {
-  const [date, setDate] = useState(getToday());
+  const [date, setDate] = useState(getDefaultDate());
   const [station, setStation] = useState("xshcm");
   const [number, setNumber] = useState("");
+  const [ticketQuantity, setTicketQuantity] = useState("1");
 
-  const [loadingCrawl, setLoadingCrawl] = useState(false);
   const [loadingCheck, setLoadingCheck] = useState(false);
   const [loadingBoard, setLoadingBoard] = useState(false);
   const [loadingStations, setLoadingStations] = useState(false);
@@ -71,9 +113,14 @@ function LotteryChecker() {
   const [board, setBoard] = useState(null);
   const [availableStations, setAvailableStations] = useState([]);
   const [now, setNow] = useState(new Date());
+  const [isPrizeModalOpen, setIsPrizeModalOpen] = useState(false);
   const tableScrollRef = useRef(null);
 
   const canCheck = useMemo(() => number.trim().length > 0, [number]);
+  const quantityValue = useMemo(() => {
+    const parsed = Number.parseInt(ticketQuantity, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  }, [ticketQuantity]);
 
   const stationAvailabilityMap = useMemo(() => {
     const map = {};
@@ -99,6 +146,15 @@ function LotteryChecker() {
       ),
     [availableStations]
   );
+
+  const selectedStationInfo = stationAvailabilityMap[station];
+  const matchedPrizeSet = useMemo(
+    () => new Set(result?.hit ? result.prizes || [] : []),
+    [result]
+  );
+
+  const winningAmount = result?.hit ? prizeAmounts[result.best_prize] || 0 : 0;
+  const totalWinningAmount = winningAmount * quantityValue;
 
   async function loadAvailableStations(selectedDate) {
     setLoadingStations(true);
@@ -141,30 +197,6 @@ function LotteryChecker() {
       setMessage(error.message);
     } finally {
       setLoadingBoard(false);
-    }
-  }
-
-  async function handleCrawl() {
-    setLoadingCrawl(true);
-    setMessage("");
-    setResult(null);
-    try {
-      const response = await fetch("/api/crawl", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, station }),
-      });
-      const data = await readJsonSafe(response);
-      if (!response.ok) {
-        throw new Error(data.detail || data.error || "Cập nhật dữ liệu thất bại.");
-      }
-      setMessage(`Đã cập nhật dữ liệu thành công (${data.inserted} số).`);
-      await loadBoard();
-      await loadAvailableStations(date);
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setLoadingCrawl(false);
     }
   }
 
@@ -213,6 +245,12 @@ function LotteryChecker() {
     setMessage("");
   }
 
+  function isMatchedNumber(value) {
+    const ticket = number.trim();
+    const target = String(value);
+    return ticket === target || (ticket.length >= target.length && ticket.endsWith(target));
+  }
+
   useEffect(() => {
     loadAvailableStations(date);
   }, [date]);
@@ -237,18 +275,6 @@ function LotteryChecker() {
       target.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [result]);
-
-  const selectedStationInfo = stationAvailabilityMap[station];
-  const matchedPrizeSet = useMemo(
-    () => new Set(result?.hit ? result.prizes || [] : []),
-    [result]
-  );
-
-  function isMatchedNumber(value) {
-    const ticket = number.trim();
-    const target = String(value);
-    return ticket === target || (ticket.length >= target.length && ticket.endsWith(target));
-  }
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(1200px_500px_at_10%_0%,#c7f0ff_0%,transparent_55%),radial-gradient(900px_500px_at_90%_100%,#ffe6b5_0%,transparent_58%),linear-gradient(135deg,#e7f4ff_0%,#eef2f7_40%,#f6efe2_100%)] px-4 py-6">
@@ -356,25 +382,42 @@ function LotteryChecker() {
                 </div>
               </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-semibold text-slate-700">Số vé</label>
-                <input
-                  type="text"
-                  placeholder="Ví dụ: 138170"
-                  value={number}
-                  onChange={(e) => setNumber(e.target.value.replace(/\D/g, ""))}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-800 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
-                />
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
+                <div>
+                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">Số vé</label>
+                  <input
+                    type="text"
+                    placeholder="Ví dụ: 138170"
+                    value={number}
+                    onChange={(e) => setNumber(e.target.value.replace(/\D/g, ""))}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-800 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">Số lượng vé</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="1"
+                    value={ticketQuantity}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "");
+                      setTicketQuantity(digits === "" ? "" : String(Math.max(1, Number(digits))));
+                    }}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-800 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <button
-                  onClick={handleCrawl}
-                  disabled={loadingCrawl}
-                  className="inline-flex h-11 items-center justify-center rounded-xl bg-cyan-600 px-4 text-sm font-semibold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  type="button"
+                  onClick={() => setIsPrizeModalOpen(true)}
+                  className="inline-flex h-11 items-center justify-center rounded-xl bg-cyan-600 px-4 text-sm font-semibold text-white transition hover:bg-cyan-500"
                 >
-                  <RefreshCw className={`mr-2 h-4 w-4 ${loadingCrawl ? "animate-spin" : ""}`} />
-                  {loadingCrawl ? "Đang cập nhật..." : "Cập nhật dữ liệu"}
+                  <Table2 className="mr-2 h-4 w-4" />
+                  Bảng tiền thưởng
                 </button>
 
                 <button
@@ -406,7 +449,13 @@ function LotteryChecker() {
                 <div className="animate-fade-up rounded-xl border border-emerald-200 bg-emerald-100 p-4 text-emerald-900">
                   <p className="text-sm font-semibold">Chúc mừng! Vé trúng giải.</p>
                   <p className="mt-1 text-sm">
-                    Vé trúng giải: <span className="font-bold">{result.best_prize}</span>
+                    Vé trúng giải: <span className="font-bold">{prizeLabels[result.best_prize] || result.best_prize}</span>
+                  </p>
+                  <p className="mt-1 text-sm">
+                    Tiền thưởng 1 vé: <span className="font-bold">{formatCurrency(winningAmount)}</span>
+                  </p>
+                  <p className="mt-1 text-sm">
+                    Tổng nhận ({quantityValue} vé): <span className="font-bold">{formatCurrency(totalWinningAmount)}</span>
                   </p>
                 </div>
               )}
@@ -491,6 +540,90 @@ function LotteryChecker() {
           </div>
         </div>
       </div>
+
+      {isPrizeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4 py-6">
+          <div className="absolute inset-0" onClick={() => setIsPrizeModalOpen(false)} />
+          <div className="relative z-10 w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Bảng tiền thưởng</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Cơ cấu giải thưởng tham khảo cho vé số kiến thiết miền Nam.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPrizeModalOpen(false)}
+                className="rounded-full border border-slate-300 p-2 text-slate-500 transition hover:bg-white hover:text-slate-800"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="max-h-[70vh] overflow-auto px-5 py-4">
+              {result?.hit && (
+                <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                  <p>
+                    Vé của bạn trúng <span className="font-bold">{prizeLabels[result.best_prize] || result.best_prize}</span>.
+                  </p>
+                  <p className="mt-1">
+                    Tiền 1 vé: <span className="font-bold">{formatCurrency(winningAmount)}</span>
+                  </p>
+                  <p className="mt-1">
+                    Số lượng vé: <span className="font-bold">{quantityValue}</span>
+                  </p>
+                  <p className="mt-1">
+                    Tổng nhận: <span className="font-bold">{formatCurrency(totalWinningAmount)}</span>
+                  </p>
+                </div>
+              )}
+
+              {!result?.hit && number.trim() && (
+                <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                  Vé hiện tại chưa có kết quả trúng. Bạn vẫn có thể xem cơ cấu tiền thưởng bên dưới.
+                </div>
+              )}
+
+              <div className="overflow-hidden rounded-2xl border border-slate-200">
+                <table className="w-full border-collapse">
+                  <thead className="bg-slate-100">
+                    <tr>
+                      <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">
+                        Mã giải
+                      </th>
+                      <th className="border-b border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700">
+                        Tên giải
+                      </th>
+                      <th className="border-b border-slate-200 px-4 py-3 text-right text-sm font-semibold text-slate-700">
+                        Tiền thưởng / vé
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {prizeOrder.map((prize) => {
+                      const isBestPrize = result?.best_prize === prize;
+                      return (
+                        <tr key={prize} className={isBestPrize ? "bg-emerald-50" : "bg-white"}>
+                          <td className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-800">
+                            {prize}
+                          </td>
+                          <td className="border-b border-slate-200 px-4 py-3 text-sm text-slate-700">
+                            {prizeLabels[prize]}
+                          </td>
+                          <td className="border-b border-slate-200 px-4 py-3 text-right text-sm font-semibold text-slate-900">
+                            {formatCurrency(prizeAmounts[prize])}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
