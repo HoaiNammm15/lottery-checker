@@ -77,6 +77,8 @@ const CANONICAL_STATIONS = [
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const AUTO_CRAWL_ENABLED = process.env.AUTO_CRAWL !== "false";
 const AUTO_CRAWL_INTERVAL_MINUTES = Number(process.env.AUTO_CRAWL_INTERVAL_MINUTES || 1440);
+const CRAWL_SWITCH_HOUR = 17;
+const CRAWL_SWITCH_MINUTE = 30;
 
 let autoCrawlRunning = false;
 
@@ -87,6 +89,16 @@ function isValidDate(value) {
 
   const parsed = dayjs(value);
   return parsed.isValid() && parsed.format("YYYY-MM-DD") === value;
+}
+
+function getCrawlDate(now = dayjs()) {
+  const switched =
+    now.hour() > CRAWL_SWITCH_HOUR ||
+    (now.hour() === CRAWL_SWITCH_HOUR && now.minute() >= CRAWL_SWITCH_MINUTE);
+
+  return switched
+    ? now.format("YYYY-MM-DD")
+    : now.subtract(1, "day").format("YYYY-MM-DD");
 }
 
 function buildKhuyenKhichFromDb(dbNumbers = []) {
@@ -141,7 +153,7 @@ async function runAutoCrawl() {
   }
 
   autoCrawlRunning = true;
-  const date = dayjs().format("YYYY-MM-DD");
+  const date = getCrawlDate();
   let successCount = 0;
   let skippedCount = 0;
   let failedCount = 0;
