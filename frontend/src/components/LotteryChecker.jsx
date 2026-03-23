@@ -27,6 +27,8 @@ const stations = [
 
 const prizeOrder = ["DB", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "KK"];
 const stationValues = new Set(stations.map((s) => s.value));
+const TAX_EXEMPTION_PER_TICKET = 10000000;
+const TAX_RATE = 0.1;
 const prizeAmounts = {
   DB: 2000000000,
   G1: 30000000,
@@ -155,6 +157,11 @@ function LotteryChecker() {
 
   const winningAmount = result?.hit ? prizeAmounts[result.best_prize] || 0 : 0;
   const totalWinningAmount = winningAmount * quantityValue;
+  const taxableAmountPerTicket = Math.max(0, winningAmount - TAX_EXEMPTION_PER_TICKET);
+  const taxPerTicket = Math.round(taxableAmountPerTicket * TAX_RATE);
+  const totalTaxAmount = taxPerTicket * quantityValue;
+  const netAmountPerTicket = Math.max(0, winningAmount - taxPerTicket);
+  const totalNetAmount = netAmountPerTicket * quantityValue;
 
   async function loadAvailableStations(selectedDate) {
     setLoadingStations(true);
@@ -455,7 +462,24 @@ function LotteryChecker() {
                     Tiền thưởng 1 vé: <span className="font-bold">{formatCurrency(winningAmount)}</span>
                   </p>
                   <p className="mt-1 text-sm">
-                    Tổng nhận ({quantityValue} vé): <span className="font-bold">{formatCurrency(totalWinningAmount)}</span>
+                    Thu? TNCN (10% ph?n v??t 10 tri?u): {" "}
+                    <span className="font-bold">{formatCurrency(taxPerTicket)}</span>
+                  </p>
+                  <p className="mt-1 text-sm">
+                    Nh?n v? 1 v?: <span className="font-bold">{formatCurrency(netAmountPerTicket)}</span>
+                  </p>
+                  <p className="mt-1 text-sm">
+                    T?ng th??ng ({quantityValue} v?): {" "}
+                    <span className="font-bold">{formatCurrency(totalWinningAmount)}</span>
+                  </p>
+                  <p className="mt-1 text-sm">
+                    T?ng thu?: <span className="font-bold">{formatCurrency(totalTaxAmount)}</span>
+                  </p>
+                  <p className="mt-1 text-sm">
+                    T?ng nh?n: <span className="font-bold">{formatCurrency(totalNetAmount)}</span>
+                  </p>
+                  <p className="mt-2 text-xs text-emerald-800/80">
+                    Ghi ch?: Thu? t?nh theo ph?n gi? tr? v? tr?ng v??t 10.000.000?/v?.
                   </p>
                 </div>
               )}
@@ -574,7 +598,22 @@ function LotteryChecker() {
                     Số lượng vé: <span className="font-bold">{quantityValue}</span>
                   </p>
                   <p className="mt-1">
-                    Tổng nhận: <span className="font-bold">{formatCurrency(totalWinningAmount)}</span>
+                    Thu? 1 v?: <span className="font-bold">{formatCurrency(taxPerTicket)}</span>
+                  </p>
+                  <p className="mt-1">
+                    Nh?n v? 1 v?: <span className="font-bold">{formatCurrency(netAmountPerTicket)}</span>
+                  </p>
+                  <p className="mt-1">
+                    T?ng th??ng: <span className="font-bold">{formatCurrency(totalWinningAmount)}</span>
+                  </p>
+                  <p className="mt-1">
+                    T?ng thu?: <span className="font-bold">{formatCurrency(totalTaxAmount)}</span>
+                  </p>
+                  <p className="mt-1">
+                    T?ng nh?n: <span className="font-bold">{formatCurrency(totalNetAmount)}</span>
+                  </p>
+                  <p className="mt-2 text-xs text-emerald-800/80">
+                    Thu? t?nh theo ph?n v??t 10.000.000?/v?.
                   </p>
                 </div>
               )}
