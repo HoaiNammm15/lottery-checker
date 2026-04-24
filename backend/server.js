@@ -9,6 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 const STATIONS = [
+  // Miền Nam
   "xsag",
   "xsbaclieu",
   "xsbentre",
@@ -30,6 +31,20 @@ const STATIONS = [
   "xstravinh",
   "xsvinhlong",
   "xsvungtau",
+  // Miền Trung
+  "xsthanhhoa",
+  "xsnghean",
+  "xshatih",
+  "xsquangbinh",
+  "xsquangtri",
+  "xshue",
+  "xsdanang",
+  "xsquangnam",
+  "xsquangngai",
+  "xsbinhdinh",
+  "xsphuyen",
+  "xskhanhhoa",
+  "xsninhthuan",
   // backward-compatible short aliases
   "xsct",
   "xsdn",
@@ -51,6 +66,7 @@ const STATIONS = [
 ];
 
 const CANONICAL_STATIONS = [
+  // Miền Nam
   "xsag",
   "xsbaclieu",
   "xsbentre",
@@ -72,6 +88,20 @@ const CANONICAL_STATIONS = [
   "xstravinh",
   "xsvinhlong",
   "xsvungtau",
+  // Miền Trung
+  "xsthanhhoa",
+  "xsnghean",
+  "xshatih",
+  "xsquangbinh",
+  "xsquangtri",
+  "xshue",
+  "xsdanang",
+  "xsquangnam",
+  "xsquangngai",
+  "xsbinhdinh",
+  "xsphuyen",
+  "xskhanhhoa",
+  "xsninhthuan",
 ];
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;

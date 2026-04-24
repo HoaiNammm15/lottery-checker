@@ -5,6 +5,7 @@ const { PRIZE_ORDER } = require("./db");
 
 const BASE_URL = "https://xosodaiphat.com";
 const STATION_ALIASES = {
+  // Miền Nam
   xscantho: "xsct",
   xsdongnai: "xsdn",
   xstiengiang: "xstg",
@@ -25,6 +26,20 @@ const STATION_ALIASES = {
   xsvungtau: "xsvt",
   xsbinhthuan: "xsbt",
   xsangiang: "xsag",
+  // Miền Trung
+  xsthanhhoa: "xsth",
+  xsnghean: "xsna",
+  xshatih: "xsha",
+  xsquangbinh: "xsqb",
+  xsquangtri: "xsqt",
+  xshue: "xshue",
+  xsdanang: "xsda",
+  xsquangnam: "xsqn",
+  xsquangngai: "xsqng",
+  xsbinhdinh: "xsbd",
+  xsphuyen: "xspy",
+  xskhanhhoa: "xskh",
+  xsninhthuan: "xsnt",
 };
 
 function normalizeStationCode(station) {

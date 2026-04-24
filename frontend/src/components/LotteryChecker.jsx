@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Table2, X } from "lucide-react";
 
-const stations = [
+const stationsNam = [
   { value: "xsag", label: "An Giang (xsag)" },
   { value: "xsbaclieu", label: "Bạc Liêu (xsbaclieu)" },
   { value: "xsbentre", label: "Bến Tre (xsbentre)" },
@@ -25,8 +25,28 @@ const stations = [
   { value: "xsvungtau", label: "Vũng Tàu (xsvungtau)" },
 ];
 
+const stationsTrung = [
+  { value: "xsthanhhoa", label: "Thanh Hóa (xsthanhhoa)" },
+  { value: "xsnghean", label: "Nghệ An (xsnghean)" },
+  { value: "xshatih", label: "Hà Tĩnh (xshatih)" },
+  { value: "xsquangbinh", label: "Quảng Bình (xsquangbinh)" },
+  { value: "xsquangtri", label: "Quảng Trị (xsquangtri)" },
+  { value: "xshue", label: "Thừa Thiên Huế (xshue)" },
+  { value: "xsdanang", label: "Đà Nẵng (xsdanang)" },
+  { value: "xsquangnam", label: "Quảng Nam (xsquangnam)" },
+  { value: "xsquangngai", label: "Quảng Ngãi (xsquangngai)" },
+  { value: "xsbinhdinh", label: "Bình Định (xsbinhdinh)" },
+  { value: "xsphuyen", label: "Phú Yên (xsphuyen)" },
+  { value: "xskhanhhoa", label: "Khánh Hòa (xskhanhhoa)" },
+  { value: "xsninhthuan", label: "Ninh Thuận (xsninhthuan)" },
+];
+
+const stationsBac = [];
+
 const prizeOrder = ["DB", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "KK"];
-const stationValues = new Set(stations.map((s) => s.value));
+const stationValuesNam = new Set(stationsNam.map((s) => s.value));
+const stationValuesTrung = new Set(stationsTrung.map((s) => s.value));
+const stationValuesBac = new Set(stationsBac.map((s) => s.value));
 const TAX_EXEMPTION_PER_TICKET = 10000000;
 const TAX_RATE = 0.1;
 const prizeAmounts = {
@@ -102,6 +122,7 @@ async function readJsonSafe(response) {
 }
 
 function LotteryChecker() {
+  const [region, setRegion] = useState("nam");
   const [date, setDate] = useState(getDefaultDate());
   const [station, setStation] = useState("xshcm");
   const [number, setNumber] = useState("");
@@ -117,6 +138,44 @@ function LotteryChecker() {
   const [now, setNow] = useState(new Date());
   const [isPrizeModalOpen, setIsPrizeModalOpen] = useState(false);
   const tableScrollRef = useRef(null);
+
+  const stations = useMemo(() => {
+    switch (region) {
+      case "trung":
+        return stationsTrung;
+      case "bac":
+        return stationsBac;
+      case "nam":
+      default:
+        return stationsNam;
+    }
+  }, [region]);
+
+  const stationValues = useMemo(() => new Set(stations.map((s) => s.value)), [stations]);
+
+  const regionInfo = useMemo(() => {
+    const info = {
+      nam: {
+        label: "Miền Nam",
+        title: "Kiểm Tra Kết Quả Xổ Số Miền Nam",
+        description: "Chọn ngày, đài và kiểm tra vé. Dữ liệu lấy từ nguồn công khai.",
+        prizeModalDesc: "Cơ cấu giải thưởng tham khảo cho vé số kiến thiết miền Nam.",
+      },
+      trung: {
+        label: "Miền Trung",
+        title: "Kiểm Tra Kết Quả Xổ Số Miền Trung",
+        description: "Chọn ngày, đài và kiểm tra vé. Dữ liệu lấy từ nguồn công khai.",
+        prizeModalDesc: "Cơ cấu giải thưởng tham khảo cho vé số kiến thiết miền Trung.",
+      },
+      bac: {
+        label: "Miền Bắc",
+        title: "Kiểm Tra Kết Quả Xổ Số Miền Bắc",
+        description: "Chọn ngày, đài và kiểm tra vé. Dữ liệu lấy từ nguồn công khai.",
+        prizeModalDesc: "Cơ cấu giải thưởng tham khảo cho vé số kiến thiết miền Bắc.",
+      },
+    };
+    return info[region];
+  }, [region]);
 
   const canCheck = useMemo(() => number.trim().length > 0, [number]);
   const quantityValue = useMemo(() => {
@@ -245,6 +304,22 @@ function LotteryChecker() {
     setMessage("");
   }
 
+  function handleRegionChange(newRegion) {
+    setRegion(newRegion);
+    setResult(null);
+    setBoard(null);
+    setMessage("");
+    
+    // Set default station for the new region
+    if (newRegion === "trung" && stationsTrung.length > 0) {
+      setStation(stationsTrung[0].value);
+    } else if (newRegion === "bac" && stationsBac.length > 0) {
+      setStation(stationsBac[0].value);
+    } else {
+      setStation(stationsNam[0].value);
+    }
+  }
+
   function handleStationChange(value) {
     setStation(value);
     setResult(null);
@@ -296,24 +371,45 @@ function LotteryChecker() {
         <div className="p-2 md:p-3">
           <header className="mb-5">
             <div className="mb-5 inline-flex w-full items-center gap-1 rounded-2xl bg-gradient-to-r from-slate-100/85 to-slate-50/85 p-1.5 shadow-inner">
-              <button className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white shadow-sm">
-                Miền Nam
+              <button
+                onClick={() => handleRegionChange("nam")}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                  region === "nam"
+                    ? "bg-cyan-600 text-white shadow-sm"
+                    : "text-slate-500 hover:bg-white/70"
+                }`}
+              >
+                {stationsNam.length > 0 && "Miền Nam"}
               </button>
-              <button className="rounded-xl px-4 py-2 text-sm font-medium text-slate-500 hover:bg-white/70">
-                Miền Trung
+              <button
+                onClick={() => handleRegionChange("trung")}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                  region === "trung"
+                    ? "bg-cyan-600 text-white shadow-sm"
+                    : "text-slate-500 hover:bg-white/70"
+                }`}
+              >
+                {stationsTrung.length > 0 && "Miền Trung"}
               </button>
-              <button className="rounded-xl px-4 py-2 text-sm font-medium text-slate-500 hover:bg-white/70">
-                Miền Bắc
+              <button
+                onClick={() => handleRegionChange("bac")}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                  region === "bac"
+                    ? "bg-cyan-600 text-white shadow-sm"
+                    : "text-slate-500 hover:bg-white/70"
+                }`}
+              >
+                {stationsBac.length > 0 && "Miền Bắc"}
               </button>
             </div>
 
             <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
               <div>
                 <h1 className="pt-1 text-2xl font-extrabold leading-[1.2] text-slate-900 md:text-4xl">
-                  Kiểm Tra Kết Quả Xổ Số Miền Nam
+                  {regionInfo.title}
                 </h1>
                 <p className="mt-1 text-sm text-slate-700">
-                  Chọn ngày, đài và kiểm tra vé. Dữ liệu lấy từ nguồn công khai.
+                  {regionInfo.description}
                 </p>
               </div>
               <p className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-600">
@@ -573,7 +669,7 @@ function LotteryChecker() {
               <div>
                 <h3 className="text-lg font-bold text-slate-900">Bảng tiền thưởng</h3>
                 <p className="mt-1 text-sm text-slate-600">
-                  Cơ cấu giải thưởng tham khảo cho vé số kiến thiết miền Nam.
+                  {regionInfo.prizeModalDesc}
                 </p>
               </div>
               <button
