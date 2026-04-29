@@ -26,9 +26,6 @@ const stationsNam = [
 ];
 
 const stationsTrung = [
-  { value: "xsthanhhoa", label: "Thanh Hóa (xsthanhhoa)" },
-  { value: "xsnghean", label: "Nghệ An (xsnghean)" },
-  { value: "xshatih", label: "Hà Tĩnh (xshatih)" },
   { value: "xsquangbinh", label: "Quảng Bình (xsquangbinh)" },
   { value: "xsquangtri", label: "Quảng Trị (xsquangtri)" },
   { value: "xshue", label: "Thừa Thiên Huế (xshue)" },
@@ -39,16 +36,18 @@ const stationsTrung = [
   { value: "xsphuyen", label: "Phú Yên (xsphuyen)" },
   { value: "xskhanhhoa", label: "Khánh Hòa (xskhanhhoa)" },
   { value: "xsninhthuan", label: "Ninh Thuận (xsninhthuan)" },
+  { value: "xsdaklak", label: "Đắk Lắk (xsdaklak)" },
+  { value: "xsdaknong", label: "Đắk Nông (xsdaknong)" },
+  { value: "xsgialai", label: "Gia Lai (xsgialai)" },
+  { value: "xskontum", label: "Kon Tum (xskontum)" },
 ];
 
 const stationsBac = [];
 
 const prizeOrder = ["DB", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "KK"];
-const stationValuesNam = new Set(stationsNam.map((s) => s.value));
-const stationValuesTrung = new Set(stationsTrung.map((s) => s.value));
-const stationValuesBac = new Set(stationsBac.map((s) => s.value));
 const TAX_EXEMPTION_PER_TICKET = 10000000;
 const TAX_RATE = 0.1;
+
 const prizeAmounts = {
   DB: 2000000000,
   G1: 30000000,
@@ -61,6 +60,7 @@ const prizeAmounts = {
   G8: 100000,
   KK: 50000000,
 };
+
 const prizeLabels = {
   DB: "Giải đặc biệt",
   G1: "Giải nhất",
@@ -73,6 +73,7 @@ const prizeLabels = {
   G8: "Giải tám",
   KK: "Giải khuyến khích",
 };
+
 const CRAWL_SWITCH_HOUR = 17;
 const CRAWL_SWITCH_MINUTE = 30;
 
@@ -127,7 +128,6 @@ function LotteryChecker() {
   const [station, setStation] = useState("xshcm");
   const [number, setNumber] = useState("");
   const [ticketQuantity, setTicketQuantity] = useState("1");
-
   const [loadingCheck, setLoadingCheck] = useState(false);
   const [loadingBoard, setLoadingBoard] = useState(false);
   const [loadingStations, setLoadingStations] = useState(false);
@@ -151,7 +151,7 @@ function LotteryChecker() {
     }
   }, [region]);
 
-  const stationValues = useMemo(() => new Set(stations.map((s) => s.value)), [stations]);
+  const stationValues = useMemo(() => new Set(stations.map((item) => item.value)), [stations]);
 
   const regionInfo = useMemo(() => {
     const info = {
@@ -174,10 +174,12 @@ function LotteryChecker() {
         prizeModalDesc: "Cơ cấu giải thưởng tham khảo cho vé số kiến thiết miền Bắc.",
       },
     };
+
     return info[region];
   }, [region]);
 
   const canCheck = useMemo(() => number.trim().length > 0, [number]);
+
   const quantityValue = useMemo(() => {
     const parsed = Number.parseInt(ticketQuantity, 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
@@ -197,18 +199,17 @@ function LotteryChecker() {
       const available = info ? info.available : false;
       return { ...item, available };
     });
+
     return withStatus.sort((a, b) => Number(b.available) - Number(a.available));
-  }, [stationAvailabilityMap]);
+  }, [stations, stationAvailabilityMap]);
 
   const availableToday = useMemo(
-    () =>
-      availableStations.filter(
-        (item) => item.available && stationValues.has(item.station)
-      ),
-    [availableStations]
+    () => availableStations.filter((item) => item.available && stationValues.has(item.station)),
+    [availableStations, stationValues]
   );
 
   const selectedStationInfo = stationAvailabilityMap[station];
+
   const matchedPrizeSet = useMemo(
     () => new Set(result?.hit ? result.prizes || [] : []),
     [result]
@@ -228,6 +229,7 @@ function LotteryChecker() {
       const query = new URLSearchParams({ date: selectedDate }).toString();
       const response = await fetch(`/api/available-stations?${query}`);
       const data = await readJsonSafe(response);
+
       if (!response.ok) {
         throw new Error(data.detail || data.error || "Tải danh sách đài thất bại.");
       }
@@ -235,9 +237,11 @@ function LotteryChecker() {
       const list = data.stations || [];
       setAvailableStations(list);
 
-      const current = list.find((x) => x.station === station);
+      const current = list.find((item) => item.station === station);
       if (current && !current.available) {
-        const firstAvailable = list.find((x) => x.available && stationValues.has(x.station));
+        const firstAvailable = list.find(
+          (item) => item.available && stationValues.has(item.station)
+        );
         if (firstAvailable) {
           setStation(firstAvailable.station);
         }
@@ -251,13 +255,16 @@ function LotteryChecker() {
 
   async function loadBoard() {
     setLoadingBoard(true);
+    setMessage("");
     try {
       const query = new URLSearchParams({ date, station }).toString();
       const response = await fetch(`/api/results?${query}`);
       const data = await readJsonSafe(response);
+
       if (!response.ok) {
         throw new Error(data.detail || data.error || "Tải bảng kết quả thất bại.");
       }
+
       setBoard(data.prizes || {});
     } catch (error) {
       setMessage(error.message);
@@ -282,9 +289,11 @@ function LotteryChecker() {
       }).toString();
       const response = await fetch(`/api/check?${query}`);
       const data = await readJsonSafe(response);
+
       if (!response.ok) {
         throw new Error(data.detail || data.error || "Kiểm tra kết quả thất bại.");
       }
+
       setResult(data);
       if (!board) {
         await loadBoard();
@@ -309,8 +318,7 @@ function LotteryChecker() {
     setResult(null);
     setBoard(null);
     setMessage("");
-    
-    // Set default station for the new region
+
     if (newRegion === "trung" && stationsTrung.length > 0) {
       setStation(stationsTrung[0].value);
     } else if (newRegion === "bac" && stationsBac.length > 0) {
@@ -335,7 +343,7 @@ function LotteryChecker() {
 
   useEffect(() => {
     loadAvailableStations(date);
-  }, [date]);
+  }, [date, region]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -408,9 +416,7 @@ function LotteryChecker() {
                 <h1 className="pt-1 text-2xl font-extrabold leading-[1.2] text-slate-900 md:text-4xl">
                   {regionInfo.title}
                 </h1>
-                <p className="mt-1 text-sm text-slate-700">
-                  {regionInfo.description}
-                </p>
+                <p className="mt-1 text-sm text-slate-700">{regionInfo.description}</p>
               </div>
               <p className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-600">
                 Thời gian hiện tại: <span className="font-semibold">{formatRealtime(now)}</span>
@@ -465,7 +471,9 @@ function LotteryChecker() {
                 <div className="mt-2 flex flex-wrap gap-2">
                   {loadingStations && <span className="text-xs text-slate-500">Đang tải...</span>}
                   {!loadingStations && availableToday.length === 0 && (
-                    <span className="text-xs text-slate-500">Chưa xác định được đài nào có kết quả.</span>
+                    <span className="text-xs text-slate-500">
+                      Chưa xác định được đài nào có kết quả.
+                    </span>
                   )}
                   {!loadingStations &&
                     availableToday.map((item) => (
@@ -498,7 +506,9 @@ function LotteryChecker() {
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">Số lượng vé</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                    Số lượng vé
+                  </label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -552,30 +562,33 @@ function LotteryChecker() {
                 <div className="animate-fade-up rounded-xl border border-emerald-200 bg-emerald-100 p-4 text-emerald-900">
                   <p className="text-sm font-semibold">Chúc mừng! Vé trúng giải.</p>
                   <p className="mt-1 text-sm">
-                    Vé trúng giải: <span className="font-bold">{prizeLabels[result.best_prize] || result.best_prize}</span>
+                    Vé trúng giải:{" "}
+                    <span className="font-bold">
+                      {prizeLabels[result.best_prize] || result.best_prize}
+                    </span>
                   </p>
                   <p className="mt-1 text-sm">
                     Tiền thưởng 1 vé: <span className="font-bold">{formatCurrency(winningAmount)}</span>
                   </p>
                   <p className="mt-1 text-sm">
-                    Thu? TNCN (10% ph?n v??t 10 tri?u): {" "}
-                    <span className="font-bold">{formatCurrency(taxPerTicket)}</span>
+                    Thuế TNCN 1 vé: <span className="font-bold">{formatCurrency(taxPerTicket)}</span>
                   </p>
                   <p className="mt-1 text-sm">
-                    Nh?n v? 1 v?: <span className="font-bold">{formatCurrency(netAmountPerTicket)}</span>
+                    Nhận về 1 vé:{" "}
+                    <span className="font-bold">{formatCurrency(netAmountPerTicket)}</span>
                   </p>
                   <p className="mt-1 text-sm">
-                    T?ng th??ng ({quantityValue} v?): {" "}
+                    Tổng thưởng ({quantityValue} vé):{" "}
                     <span className="font-bold">{formatCurrency(totalWinningAmount)}</span>
                   </p>
                   <p className="mt-1 text-sm">
-                    T?ng thu?: <span className="font-bold">{formatCurrency(totalTaxAmount)}</span>
+                    Tổng thuế: <span className="font-bold">{formatCurrency(totalTaxAmount)}</span>
                   </p>
                   <p className="mt-1 text-sm">
-                    T?ng nh?n: <span className="font-bold">{formatCurrency(totalNetAmount)}</span>
+                    Tổng nhận: <span className="font-bold">{formatCurrency(totalNetAmount)}</span>
                   </p>
                   <p className="mt-2 text-xs text-emerald-800/80">
-                    Ghi ch?: Thu? t?nh theo ph?n gi? tr? v? tr?ng v??t 10.000.000?/v?.
+                    Ghi chú: Thuế tính trên phần giá trị trúng vượt 10.000.000đ/vé.
                   </p>
                 </div>
               )}
@@ -668,9 +681,7 @@ function LotteryChecker() {
             <div className="flex items-start justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">Bảng tiền thưởng</h3>
-                <p className="mt-1 text-sm text-slate-600">
-                  {regionInfo.prizeModalDesc}
-                </p>
+                <p className="mt-1 text-sm text-slate-600">{regionInfo.prizeModalDesc}</p>
               </div>
               <button
                 type="button"
@@ -685,7 +696,11 @@ function LotteryChecker() {
               {result?.hit && (
                 <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
                   <p>
-                    Vé của bạn trúng <span className="font-bold">{prizeLabels[result.best_prize] || result.best_prize}</span>.
+                    Vé của bạn trúng{" "}
+                    <span className="font-bold">
+                      {prizeLabels[result.best_prize] || result.best_prize}
+                    </span>
+                    .
                   </p>
                   <p className="mt-1">
                     Tiền 1 vé: <span className="font-bold">{formatCurrency(winningAmount)}</span>
@@ -694,22 +709,23 @@ function LotteryChecker() {
                     Số lượng vé: <span className="font-bold">{quantityValue}</span>
                   </p>
                   <p className="mt-1">
-                    Thu? 1 v?: <span className="font-bold">{formatCurrency(taxPerTicket)}</span>
+                    Thuế 1 vé: <span className="font-bold">{formatCurrency(taxPerTicket)}</span>
                   </p>
                   <p className="mt-1">
-                    Nh?n v? 1 v?: <span className="font-bold">{formatCurrency(netAmountPerTicket)}</span>
+                    Nhận về 1 vé:{" "}
+                    <span className="font-bold">{formatCurrency(netAmountPerTicket)}</span>
                   </p>
                   <p className="mt-1">
-                    T?ng th??ng: <span className="font-bold">{formatCurrency(totalWinningAmount)}</span>
+                    Tổng thưởng: <span className="font-bold">{formatCurrency(totalWinningAmount)}</span>
                   </p>
                   <p className="mt-1">
-                    T?ng thu?: <span className="font-bold">{formatCurrency(totalTaxAmount)}</span>
+                    Tổng thuế: <span className="font-bold">{formatCurrency(totalTaxAmount)}</span>
                   </p>
                   <p className="mt-1">
-                    T?ng nh?n: <span className="font-bold">{formatCurrency(totalNetAmount)}</span>
+                    Tổng nhận: <span className="font-bold">{formatCurrency(totalNetAmount)}</span>
                   </p>
                   <p className="mt-2 text-xs text-emerald-800/80">
-                    Thu? t?nh theo ph?n v??t 10.000.000?/v?.
+                    Thuế tính theo phần vượt 10.000.000đ/vé.
                   </p>
                 </div>
               )}

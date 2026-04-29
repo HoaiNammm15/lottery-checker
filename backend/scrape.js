@@ -27,19 +27,20 @@ const STATION_ALIASES = {
   xsbinhthuan: "xsbt",
   xsangiang: "xsag",
   // Miền Trung
-  xsthanhhoa: "xsth",
-  xsnghean: "xsna",
-  xshatih: "xsha",
   xsquangbinh: "xsqb",
   xsquangtri: "xsqt",
   xshue: "xshue",
   xsdanang: "xsda",
-  xsquangnam: "xsqn",
+  xsquangnam: "xsqna",
   xsquangngai: "xsqng",
-  xsbinhdinh: "xsbd",
+  xsbinhdinh: "xsbdi",
   xsphuyen: "xspy",
   xskhanhhoa: "xskh",
   xsninhthuan: "xsnt",
+  xsdaklak: "xsdlk",
+  xsdaknong: "xsdno",
+  xsgialai: "xsgl",
+  xskontum: "xskt",
 };
 
 function normalizeStationCode(station) {

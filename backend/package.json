@@ -1,11 +1,12 @@
-﻿{
+{
   "name": "checkxoso-backend",
   "version": "1.0.0",
   "description": "Backend API for Vietnam Southern lottery checking",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
-    "dev": "node server.js"
+    "dev": "nodemon server.js",
+    "start": "node server.js"
   },
   "dependencies": {
     "axios": "^1.8.4",
@@ -15,5 +16,8 @@
     "express": "^4.21.2",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }

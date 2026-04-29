@@ -32,9 +32,6 @@ const STATIONS = [
   "xsvinhlong",
   "xsvungtau",
   // Miền Trung
-  "xsthanhhoa",
-  "xsnghean",
-  "xshatih",
   "xsquangbinh",
   "xsquangtri",
   "xshue",
@@ -45,6 +42,10 @@ const STATIONS = [
   "xsphuyen",
   "xskhanhhoa",
   "xsninhthuan",
+  "xsdaklak",
+  "xsdaknong",
+  "xsgialai",
+  "xskontum",
   // backward-compatible short aliases
   "xsct",
   "xsdn",
@@ -63,6 +64,10 @@ const STATIONS = [
   "xshg",
   "xskg",
   "xsdl",
+  "xsdlk",
+  "xsdno",
+  "xsgl",
+  "xskt",
 ];
 
 const CANONICAL_STATIONS = [
@@ -89,9 +94,6 @@ const CANONICAL_STATIONS = [
   "xsvinhlong",
   "xsvungtau",
   // Miền Trung
-  "xsthanhhoa",
-  "xsnghean",
-  "xshatih",
   "xsquangbinh",
   "xsquangtri",
   "xshue",
@@ -102,7 +104,35 @@ const CANONICAL_STATIONS = [
   "xsphuyen",
   "xskhanhhoa",
   "xsninhthuan",
+  "xsdaklak",
+  "xsdaknong",
+  "xsgialai",
+  "xskontum",
 ];
+
+const STATION_CANONICAL_ALIASES = {
+  xsct: "xscantho",
+  xsdn: "xsdongnai",
+  xstg: "xstiengiang",
+  xstn: "xstayninh",
+  xsst: "xssoctrang",
+  xsvl: "xsvinhlong",
+  xstv: "xstravinh",
+  xsla: "xslongan",
+  xsbp: "xsbinhphuoc",
+  xsbl: "xsbaclieu",
+  xsbtr: "xsbentre",
+  xsbd: "xsbinhduong",
+  xscm: "xscamau",
+  xsdt: "xsdongthap",
+  xshg: "xshaugiang",
+  xskg: "xskiengiang",
+  xsdl: "xsdalat",
+  xsdlk: "xsdaklak",
+  xsdno: "xsdaknong",
+  xsgl: "xsgialai",
+  xskt: "xskontum",
+};
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const AUTO_CRAWL_ENABLED = process.env.AUTO_CRAWL !== "false";
@@ -119,6 +149,11 @@ function isValidDate(value) {
 
   const parsed = dayjs(value);
   return parsed.isValid() && parsed.format("YYYY-MM-DD") === value;
+}
+
+function normalizeRequestedStation(value) {
+  const key = String(value || "").toLowerCase().trim();
+  return STATION_CANONICAL_ALIASES[key] || key;
 }
 
 function getCrawlDate(now = dayjs()) {
@@ -154,6 +189,25 @@ function buildKhuyenKhichFromDb(dbNumbers = []) {
   }
 
   return kk;
+}
+
+function hasPrizeData(prizes) {
+  if (!prizes || typeof prizes !== "object") {
+    return false;
+  }
+
+  return Object.values(prizes).some((numbers) => Array.isArray(numbers) && numbers.length > 0);
+}
+
+async function ensureLatestResults(date, station) {
+  try {
+    await crawlAndStore(date, station);
+  } catch (error) {
+    const cachedPrizes = await getResultsByDateStation(date, station);
+    if (!hasPrizeData(cachedPrizes)) {
+      throw error;
+    }
+  }
 }
 
 async function crawlAndStore(date, station) {
@@ -226,6 +280,7 @@ app.get("/health", (_, res) => {
 app.post("/api/crawl", async (req, res) => {
   try {
     const { date, station } = req.body || {};
+    const canonicalStation = normalizeRequestedStation(station);
 
     if (!date || !station) {
       return res.status(400).json({
@@ -239,18 +294,19 @@ app.post("/api/crawl", async (req, res) => {
       });
     }
 
-    if (!STATIONS.includes(station)) {
+    if (!STATIONS.includes(canonicalStation)) {
       return res.status(400).json({
         error: `station must be one of: ${STATIONS.join(", ")}`,
       });
     }
 
-    const { url, results, inserted } = await crawlAndStore(date, station);
+    const { url, results, inserted } = await crawlAndStore(date, canonicalStation);
 
     return res.json({
       success: true,
       url,
       inserted,
+      station: canonicalStation,
       prizes: results,
     });
   } catch (error) {
@@ -278,6 +334,7 @@ app.post("/api/crawl", async (req, res) => {
 app.get("/api/check", async (req, res) => {
   try {
     const { date, station, number } = req.query;
+    const canonicalStation = normalizeRequestedStation(station);
 
     if (!date || !station || !number) {
       return res.status(400).json({
@@ -291,15 +348,31 @@ app.get("/api/check", async (req, res) => {
       });
     }
 
-    if (!STATIONS.includes(station)) {
+    if (!STATIONS.includes(canonicalStation)) {
       return res.status(400).json({
         error: `station must be one of: ${STATIONS.join(", ")}`,
       });
     }
 
-    const result = await checkNumber(date, station, String(number).trim());
+    await ensureLatestResults(date, canonicalStation);
+
+    const result = await checkNumber(date, canonicalStation, String(number).trim());
     return res.json(result);
   } catch (error) {
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        error: "Chưa có kết quả cho ngày/đài này trên nguồn dữ liệu.",
+        detail: `Không tìm thấy trang kết quả: ${error.crawlUrl || ""}`.trim(),
+      });
+    }
+
+    if (error.statusCode === 404) {
+      return res.status(404).json({
+        error: "Không đọc được dữ liệu từ trang kết quả.",
+        detail: error.url || error.message,
+      });
+    }
+
     return res.status(500).json({
       error: "check failed",
       detail: error.message,
@@ -310,6 +383,7 @@ app.get("/api/check", async (req, res) => {
 app.get("/api/results", async (req, res) => {
   try {
     const { date, station } = req.query;
+    const canonicalStation = normalizeRequestedStation(station);
 
     if (!date || !station) {
       return res.status(400).json({
@@ -323,20 +397,35 @@ app.get("/api/results", async (req, res) => {
       });
     }
 
-    if (!STATIONS.includes(station)) {
+    if (!STATIONS.includes(canonicalStation)) {
       return res.status(400).json({
         error: `station must be one of: ${STATIONS.join(", ")}`,
       });
     }
 
-    const prizes = await getResultsByDateStation(date, station);
+    await ensureLatestResults(date, canonicalStation);
+    const prizes = await getResultsByDateStation(date, canonicalStation);
 
     return res.json({
       date,
-      station,
+      station: canonicalStation,
       prizes,
     });
   } catch (error) {
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        error: "Chưa có kết quả cho ngày/đài này trên nguồn dữ liệu.",
+        detail: `Không tìm thấy trang kết quả: ${error.crawlUrl || ""}`.trim(),
+      });
+    }
+
+    if (error.statusCode === 404) {
+      return res.status(404).json({
+        error: "Không đọc được dữ liệu từ trang kết quả.",
+        detail: error.url || error.message,
+      });
+    }
+
     return res.status(500).json({
       error: "load results failed",
       detail: error.message,
