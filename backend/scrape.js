@@ -1,149 +1,200 @@
-﻿const axios = require("axios");
+const axios = require("axios");
 const cheerio = require("cheerio");
 const dayjs = require("dayjs");
-const { PRIZE_ORDER } = require("./db");
+const utc = require("dayjs/plugin/utc");
+dayjs.extend(utc);
 
 const BASE_URL = "https://xosodaiphat.com";
-const STATION_ALIASES = {
+
+const STATION_REGIONS = {
   // Miền Nam
-  xscantho: "xsct",
-  xsdongnai: "xsdn",
-  xstiengiang: "xstg",
-  xstayninh: "xstn",
-  xssoctrang: "xsst",
-  xsvinhlong: "xsvl",
-  xstravinh: "xstv",
-  xslongan: "xsla",
-  xsbinhphuoc: "xsbp",
-  xsbaclieu: "xsbl",
-  xsbentre: "xsbtr",
-  xsbinhduong: "xsbd",
-  xscamau: "xscm",
-  xsdongthap: "xsdt",
-  xshaugiang: "xshg",
-  xskiengiang: "xskg",
-  xsdalat: "xsdl",
-  xsvungtau: "xsvt",
-  xsbinhthuan: "xsbt",
-  xsangiang: "xsag",
+  xsag: "nam", xsbaclieu: "nam", xsbentre: "nam", xsbinhduong: "nam",
+  xsbinhphuoc: "nam", xsbinhthuan: "nam", xscamau: "nam", xscantho: "nam",
+  xsdalat: "nam", xsdongnai: "nam", xsdongthap: "nam", xshaugiang: "nam",
+  xshcm: "nam", xskiengiang: "nam", xslongan: "nam", xssoctrang: "nam",
+  xstayninh: "nam", xstiengiang: "nam", xstravinh: "nam", xsvinhlong: "nam",
+  xsvungtau: "nam",
+  
   // Miền Trung
-  xsquangbinh: "xsqb",
-  xsquangtri: "xsqt",
-  xshue: "xshue",
-  xsdanang: "xsda",
-  xsquangnam: "xsqna",
-  xsquangngai: "xsqng",
-  xsbinhdinh: "xsbdi",
-  xsphuyen: "xspy",
-  xskhanhhoa: "xskh",
-  xsninhthuan: "xsnt",
-  xsdaklak: "xsdlk",
-  xsdaknong: "xsdno",
-  xsgialai: "xsgl",
-  xskontum: "xskt",
+  xsquangbinh: "trung", xsquangtri: "trung", xshue: "trung", xsdanang: "trung",
+  xsquangnam: "trung", xsquangngai: "trung", xsbinhdinh: "trung", xsphuyen: "trung",
+  xskhanhhoa: "trung", xsninhthuan: "trung", xsdaklak: "trung", xsdaknong: "trung",
+  xsgialai: "trung", xskontum: "trung",
+  
+  // Miền Bắc
+  xsmb: "bac",
+  
+  // Short aliases
+  xsct: "nam", xsdn: "nam", xstg: "nam", xstn: "nam", xsst: "nam",
+  xsvl: "nam", xstv: "nam", xsla: "nam", xsbp: "nam", xsbl: "nam",
+  xsbtr: "nam", xsbd: "nam", xscm: "nam", xsdt: "nam", xshg: "nam",
+  xskg: "nam", xsdl: "nam", xsdlk: "trung", xsdno: "trung", xsgl: "trung",
+  xskt: "trung"
 };
 
-function normalizeStationCode(station) {
-  const key = String(station || "").toLowerCase().trim();
-  return STATION_ALIASES[key] || key;
-}
+const STATION_NAMES = {
+  xsag: "An Giang",
+  xsbaclieu: "Bạc Liêu",
+  xsbentre: "Bến Tre",
+  xsbinhduong: "Bình Dương",
+  xsbinhphuoc: "Bình Phước",
+  xsbinhthuan: "Bình Thuận",
+  xscamau: "Cà Mau",
+  xscantho: "Cần Thơ",
+  xsdalat: "Đà Lạt",
+  xsdongnai: "Đồng Nai",
+  xsdongthap: "Đồng Tháp",
+  xshaugiang: "Hậu Giang",
+  xshcm: "TPHCM",
+  xskiengiang: "Kiên Giang",
+  xslongan: "Long An",
+  xssoctrang: "Sóc Trăng",
+  xstayninh: "Tây Ninh",
+  xstiengiang: "Tiền Giang",
+  xstravinh: "Trà Vinh",
+  xsvinhlong: "Vĩnh Long",
+  xsvungtau: "Vũng Tàu",
 
-function buildResultUrl(date, station) {
-  const dateText = dayjs(date).format("DD-MM-YYYY");
-  const stationCode = normalizeStationCode(station);
-  return `${BASE_URL}/${stationCode}-${dateText}.html`;
-}
+  xsquangbinh: "Quảng Bình",
+  xsquangtri: "Quảng Trị",
+  xshue: "Huế",
+  xsdanang: "Đà Nẵng",
+  xsquangnam: "Quảng Nam",
+  xsquangngai: "Quảng Ngãi",
+  xsbinhdinh: "Bình Định",
+  xsphuyen: "Phú Yên",
+  xskhanhhoa: "Khánh Hòa",
+  xsninhthuan: "Ninh Thuận",
+  xsdaklak: "Đắk Lắk",
+  xsdaknong: "Đắk Nông",
+  xsgialai: "Gia Lai",
+  xskontum: "Kon Tum",
+
+  xsmb: "Miền Bắc",
+  
+  // Short aliases
+  xsct: "Cần Thơ", xsdn: "Đồng Nai", xstg: "Tiền Giang", xstn: "Tây Ninh",
+  xsst: "Sóc Trăng", xsvl: "Vĩnh Long", xstv: "Trà Vinh", xsla: "Long An",
+  xsbp: "Bình Phước", xsbl: "Bạc Liêu", xsbtr: "Bến Tre", xsbd: "Bình Dương",
+  xscm: "Cà Mau", xsdt: "Đồng Tháp", xshg: "Hậu Giang", xskg: "Kiên Giang",
+  xsdl: "Đà Lạt", xsdlk: "Đắk Lắk", xsdno: "Đắk Nông", xsgl: "Gia Lai",
+  xskt: "Kon Tum"
+};
+
+const PRIZE_ORDER = ["DB", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "KK"];
 
 function normalizePrize(raw) {
-  if (!raw) {
-    return "";
+  if (!raw) return "";
+  let cleaned = raw.toUpperCase().replace(/\s+/g, "").replace(/\./g, "");
+  
+  if (cleaned.includes("ĐB") || cleaned.includes("DB") || cleaned.includes("ĐẶCBIỆT") || cleaned.includes("DACBIET")) {
+    return "DB";
   }
-
-  const cleaned = raw
-    .toUpperCase()
-    .replace(/\s+/g, "")
-    .replace(/\./g, "")
-    .replace("ĐB", "DB")
-    .replace("GIẢI", "G")
-    .replace("GIAI", "G");
-
+  
+  cleaned = cleaned.replace("GIẢI", "G").replace("GIAI", "G");
+  
   if (cleaned.includes("KHUYENKHICH") || cleaned === "KK" || cleaned === "GK" || cleaned === "GKK") {
     return "KK";
   }
-
+  
   return cleaned;
 }
 
 function extractNumbers(text) {
-  if (!text) {
-    return [];
-  }
-
+  if (!text) return [];
   const matches = text.match(/\d{2,6}/g);
   return matches ? [...new Set(matches)] : [];
 }
 
-function parseFromTable($) {
+function buildResultUrl(date, station) {
+  const region = STATION_REGIONS[station] || "nam";
+  const todayStr = dayjs().utcOffset(7).format("YYYY-MM-DD");
+  const isToday = date === todayStr;
+
+  if (isToday) {
+    if (region === "nam") return `${BASE_URL}/xsmn-xo-so-mien-nam.html`;
+    if (region === "trung") return `${BASE_URL}/xsmt-xo-so-mien-trung.html`;
+    return `${BASE_URL}/xsmb-xo-so-mien-bac.html`;
+  } else {
+    const dateText = dayjs(date).format("DD-MM-YYYY");
+    if (region === "nam") return `${BASE_URL}/xsmn-${dateText}.html`;
+    if (region === "trung") return `${BASE_URL}/xsmt-${dateText}.html`;
+    return `${BASE_URL}/xsmb-${dateText}.html`;
+  }
+}
+
+function parseFromTable($, targetStationName) {
   const results = {};
+  
+  // Find the results table. For regional pages, it has table-xsmn or table-xsmt or table-xsmb.
+  // We select the first table on the page.
+  const mainTable = $("table").first();
+  if (mainTable.length === 0) {
+    return results;
+  }
+  
+  const rows = mainTable.find("tr");
+  if (rows.length === 0) {
+    return results;
+  }
+  
+  // Parse header row to find column index
+  const headerRow = $(rows[0]);
+  const headerCells = headerRow.find("th, td").toArray().map(cell => $(cell).text().trim().toLowerCase());
+  
+  let targetColIndex = -1;
+  
+  const normalize = (str) => {
+    return str.normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/[đĐ]/g, "d")
+              .replace(/\s+/g, "")
+              .toLowerCase();
+  };
 
-  $("tr").each((_, row) => {
-    const cells = $(row).find("th, td");
-    if (cells.length < 2) {
-      return;
+  const normalizedTarget = normalize(targetStationName);
+  
+  for (let i = 1; i < headerCells.length; i++) {
+    const cellText = headerCells[i];
+    if (normalize(cellText).includes(normalizedTarget) || normalizedTarget.includes(normalize(cellText))) {
+      targetColIndex = i;
+      break;
     }
-
+  }
+  
+  if (targetColIndex === -1) {
+    if (headerCells.length === 2) {
+      targetColIndex = 1;
+    } else {
+      return results; // Station not found in header
+    }
+  }
+  
+  // Parse prize rows
+  for (let r = 1; r < rows.length; r++) {
+    const cells = $(rows[r]).find("th, td");
+    if (cells.length < headerCells.length) {
+      continue;
+    }
+    
     const prizeText = normalizePrize($(cells[0]).text());
     if (!PRIZE_ORDER.includes(prizeText)) {
-      return;
+      continue;
     }
-
-    const numberText = cells
-      .toArray()
-      .slice(1)
-      .map((cell) => $(cell).text())
-      .join(" ");
-
-    const numbers = extractNumbers(numberText);
+    
+    const cellValue = $(cells[targetColIndex]).text().trim();
+    const numbers = extractNumbers(cellValue);
     if (numbers.length > 0) {
       results[prizeText] = numbers;
     }
-  });
-
-  return results;
-}
-
-function parseFromWholeText($) {
-  const results = {};
-  const text = $("body").text().replace(/\s+/g, " ");
-
-  for (const prize of PRIZE_ORDER) {
-    const aliases =
-      prize === "DB"
-        ? ["DB", "ĐB"]
-        : prize === "KK"
-          ? ["KK", "GK", "KHUYENKHICH", "GIAIKK", "GKK"]
-          : [prize];
-    const pattern = new RegExp(
-      `(?:${aliases.join("|")})\\s*[:\\-]?\\s*([0-9\\s-]{2,120})`,
-      "i"
-    );
-    const match = text.match(pattern);
-
-    if (!match) {
-      continue;
-    }
-
-    const numbers = extractNumbers(match[1]);
-    if (numbers.length > 0) {
-      results[prize] = numbers;
-    }
   }
-
+  
   return results;
 }
 
 async function crawlLottery(date, station) {
   const url = buildResultUrl(date, station);
+  const stationName = STATION_NAMES[station] || station;
 
   let response;
   try {
@@ -160,24 +211,13 @@ async function crawlLottery(date, station) {
   }
 
   const $ = cheerio.load(response.data);
-
-  // Remove scripts/styles to make fallback text parsing cleaner.
   $("script, style, noscript").remove();
 
-  const parsedTable = parseFromTable($);
-  const parsedText = parseFromWholeText($);
-
-  const merged = {};
-  for (const prize of PRIZE_ORDER) {
-    const numbers = parsedTable[prize] || parsedText[prize] || [];
-    if (numbers.length > 0) {
-      merged[prize] = numbers;
-    }
-  }
+  const results = parseFromTable($, stationName);
 
   return {
     url,
-    results: merged,
+    results,
   };
 }
 

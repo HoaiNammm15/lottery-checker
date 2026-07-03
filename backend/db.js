@@ -1,4 +1,4 @@
-﻿const path = require("path");
+const path = require("path");
 const sqlite3 = require("sqlite3");
 const { open } = require("sqlite");
 const dayjs = require("dayjs");
@@ -7,27 +7,74 @@ const DB_PATH = path.join(__dirname, "lottery.sqlite");
 
 let db;
 
-const PRIZE_ORDER = ["DB", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "KK"];
+const PRIZE_ORDER = ["DB", "SubDB", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "KK"];
 
-function deriveKkFromDb(dbNumber) {
-  const db = String(dbNumber || "").trim();
-  if (!/^\d{6}$/.test(db)) {
-    return [];
-  }
-
-  const firstDigit = db[0];
-  const lastFive = db.slice(1);
-  const kk = [];
-
-  for (let d = 0; d <= 9; d += 1) {
-    const digit = String(d);
-    if (digit !== firstDigit) {
-      kk.push(`${digit}${lastFive}`);
-    }
-  }
-
-  return kk;
-}
+const STATION_REGIONS = {
+  // Miền Nam
+  xsag: "nam",
+  xsbaclieu: "nam",
+  xsbentre: "nam",
+  xsbinhduong: "nam",
+  xsbinhphuoc: "nam",
+  xsbinhthuan: "nam",
+  xscamau: "nam",
+  xscantho: "nam",
+  xsdalat: "nam",
+  xsdongnai: "nam",
+  xsdongthap: "nam",
+  xshaugiang: "nam",
+  xshcm: "nam",
+  xskiengiang: "nam",
+  xslongan: "nam",
+  xssoctrang: "nam",
+  xstayninh: "nam",
+  xstiengiang: "nam",
+  xstravinh: "nam",
+  xsvinhlong: "nam",
+  xsvungtau: "nam",
+  
+  // Miền Trung
+  xsquangbinh: "trung",
+  xsquangtri: "trung",
+  xshue: "trung",
+  xsdanang: "trung",
+  xsquangnam: "trung",
+  xsquangngai: "trung",
+  xsbinhdinh: "trung",
+  xsphuyen: "trung",
+  xskhanhhoa: "trung",
+  xsninhthuan: "trung",
+  xsdaklak: "trung",
+  xsdaknong: "trung",
+  xsgialai: "trung",
+  xskontum: "trung",
+  
+  // Miền Bắc
+  xsmb: "bac",
+  
+  // Short aliases
+  xsct: "nam",
+  xsdn: "nam",
+  xstg: "nam",
+  xstn: "nam",
+  xsst: "nam",
+  xsvl: "nam",
+  xstv: "nam",
+  xsla: "nam",
+  xsbp: "nam",
+  xsbl: "nam",
+  xsbtr: "nam",
+  xsbd: "nam",
+  xscm: "nam",
+  xsdt: "nam",
+  xshg: "nam",
+  xskg: "nam",
+  xsdl: "nam",
+  xsdlk: "trung",
+  xsdno: "trung",
+  xsgl: "trung",
+  xskt: "trung"
+};
 
 async function initDb() {
   if (db) {
@@ -63,11 +110,6 @@ async function saveResults(date, station, resultsMap) {
   const connection = await initDb();
   const now = dayjs().format("YYYY-MM-DD HH:mm:ss");
   const normalizedResults = { ...resultsMap };
-
-  // Always ensure KK exists when DB is present.
-  if ((!normalizedResults.KK || normalizedResults.KK.length === 0) && normalizedResults.DB?.[0]) {
-    normalizedResults.KK = deriveKkFromDb(normalizedResults.DB[0]);
-  }
 
   await connection.exec("BEGIN TRANSACTION");
 
@@ -105,37 +147,86 @@ async function saveResults(date, station, resultsMap) {
 async function checkNumber(date, station, number) {
   const connection = await initDb();
 
-  const dbRows = await connection.all(
+  const rows = await connection.all(
     `SELECT prize, number
      FROM lottery_results
      WHERE date = ? AND station = ?`,
     [date, station]
   );
-  const rows = [...dbRows];
-
-  const hasKk = rows.some((row) => row.prize === "KK");
-  const dbPrize = rows.find((row) => row.prize === "DB");
-  if (!hasKk && dbPrize) {
-    const derivedKk = deriveKkFromDb(dbPrize.number);
-    for (const num of derivedKk) {
-      rows.push({ prize: "KK", number: num });
-    }
-  }
 
   const ticket = String(number).trim();
   const matchedPrizes = new Set();
+  
+  const region = STATION_REGIONS[station] || "nam";
 
+  // Group rows by prize for easy lookup
+  const prizes = {};
   for (const row of rows) {
-    const resultNumber = String(row.number).trim();
+    if (!prizes[row.prize]) {
+      prizes[row.prize] = [];
+    }
+    prizes[row.prize].push(String(row.number).trim());
+  }
 
-    // VN lottery tickets are commonly 6 digits.
-    // For shorter prizes (G8/G7/...), compare by ending digits.
-    const isExact = ticket === resultNumber;
-    const isSuffixMatch =
-      ticket.length >= resultNumber.length && ticket.endsWith(resultNumber);
+  // 1. Check Special Prize (DB) and its consolation prizes (SubDB, KK)
+  const dbNumbers = prizes.DB || [];
+  const dbNumber = dbNumbers[0] ? String(dbNumbers[0]).trim() : null;
 
-    if (isExact || isSuffixMatch) {
-      matchedPrizes.add(row.prize);
+  if (dbNumber) {
+    if (ticket === dbNumber) {
+      matchedPrizes.add("DB");
+    } else {
+      if (region === "bac") {
+        // Northern SubDB: 5 digits, matches last 4 digits of DB, differs in 1st digit
+        if (ticket.length === 5 && dbNumber.length === 5) {
+          if (ticket.slice(1) === dbNumber.slice(1) && ticket[0] !== dbNumber[0]) {
+            matchedPrizes.add("SubDB");
+          }
+        }
+        // Northern KK: 5 digits, ends with last 2 digits of DB (excluding SubDB/DB wins)
+        if (ticket.length === 5 && dbNumber.length === 5) {
+          if (ticket.slice(3) === dbNumber.slice(3) && !matchedPrizes.has("SubDB")) {
+            matchedPrizes.add("KK");
+          }
+        }
+      } else {
+        // Southern/Central SubDB: 6 digits, matches last 5 digits of DB, differs in 1st digit
+        if (ticket.length === 6 && dbNumber.length === 6) {
+          if (ticket.slice(1) === dbNumber.slice(1) && ticket[0] !== dbNumber[0]) {
+            matchedPrizes.add("SubDB");
+          }
+        }
+        // Southern/Central KK: 6 digits, same 1st digit, and exactly 1 digit different among the remaining 5 digits
+        if (ticket.length === 6 && dbNumber.length === 6) {
+          if (ticket[0] === dbNumber[0]) {
+            let diffCount = 0;
+            for (let i = 1; i < 6; i++) {
+              if (ticket[i] !== dbNumber[i]) {
+                diffCount++;
+              }
+            }
+            if (diffCount === 1) {
+              matchedPrizes.add("KK");
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Check main prizes G1 to G8
+  const mainPrizeCategories = region === "bac"
+    ? ["G1", "G2", "G3", "G4", "G5", "G6", "G7"]
+    : ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8"];
+
+  for (const prize of mainPrizeCategories) {
+    const list = prizes[prize] || [];
+    for (const num of list) {
+      const resultNumber = String(num).trim();
+      const isSuffixMatch = ticket.length >= resultNumber.length && ticket.endsWith(resultNumber);
+      if (isSuffixMatch) {
+        matchedPrizes.add(prize);
+      }
     }
   }
 
@@ -143,12 +234,13 @@ async function checkNumber(date, station, number) {
     return { hit: false };
   }
 
-  const prizes = PRIZE_ORDER.filter((prize) => matchedPrizes.has(prize));
+  // Sort matched prizes by PRIZE_ORDER to determine best_prize and return list
+  const prizesList = PRIZE_ORDER.filter((prize) => matchedPrizes.has(prize));
 
   return {
     hit: true,
-    best_prize: prizes[0],
-    prizes,
+    best_prize: prizesList[0],
+    prizes: prizesList,
   };
 }
 
@@ -174,11 +266,6 @@ async function getResultsByDateStation(date, station) {
     map[row.prize].push(String(row.number));
   }
 
-  // Backward compatible: old crawled days may miss KK in DB.
-  if (map.KK.length === 0 && map.DB.length > 0) {
-    map.KK = deriveKkFromDb(map.DB[0]);
-  }
-
   return map;
 }
 
@@ -188,4 +275,5 @@ module.exports = {
   checkNumber,
   getResultsByDateStation,
   PRIZE_ORDER,
+  STATION_REGIONS,
 };

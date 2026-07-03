@@ -1,8 +1,11 @@
-﻿const express = require("express");
+const express = require("express");
 const cors = require("cors");
 const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+dayjs.extend(utc);
 const axios = require("axios");
-const { initDb, saveResults, checkNumber, getResultsByDateStation } = require("./db");
+const path = require("path");
+const { initDb, saveResults, checkNumber, getResultsByDateStation, STATION_REGIONS } = require("./db");
 const { crawlLottery, buildResultUrl } = require("./scrape");
 
 const app = express();
@@ -46,6 +49,8 @@ const STATIONS = [
   "xsdaknong",
   "xsgialai",
   "xskontum",
+  // Miền Bắc
+  "xsmb",
   // backward-compatible short aliases
   "xsct",
   "xsdn",
@@ -108,6 +113,8 @@ const CANONICAL_STATIONS = [
   "xsdaknong",
   "xsgialai",
   "xskontum",
+  // Miền Bắc
+  "xsmb",
 ];
 
 const STATION_CANONICAL_ALIASES = {
@@ -134,6 +141,51 @@ const STATION_CANONICAL_ALIASES = {
   xskt: "xskontum",
 };
 
+const WEEKLY_SCHEDULE = {
+  // Sunday
+  0: {
+    nam: ["xstiengiang", "xskiengiang", "xsdalat"],
+    trung: ["xskhanhhoa", "xskontum", "xshue"],
+    bac: ["xsmb"],
+  },
+  // Monday
+  1: {
+    nam: ["xshcm", "xsdongthap", "xscamau"],
+    trung: ["xshue", "xsphuyen"],
+    bac: ["xsmb"],
+  },
+  // Tuesday
+  2: {
+    nam: ["xsbentre", "xsvungtau", "xsbaclieu"],
+    trung: ["xsdaklak", "xsquangnam"],
+    bac: ["xsmb"],
+  },
+  // Wednesday
+  3: {
+    nam: ["xsdongnai", "xscantho", "xssoctrang"],
+    trung: ["xsdanang", "xskhanhhoa"],
+    bac: ["xsmb"],
+  },
+  // Thursday
+  4: {
+    nam: ["xstayninh", "xsag", "xsbinhthuan"],
+    trung: ["xsbinhdinh", "xsquangtri", "xsquangbinh"],
+    bac: ["xsmb"],
+  },
+  // Friday
+  5: {
+    nam: ["xsvinhlong", "xsbinhduong", "xstravinh"],
+    trung: ["xsgialai", "xsninhthuan"],
+    bac: ["xsmb"],
+  },
+  // Saturday
+  6: {
+    nam: ["xshcm", "xslongan", "xsbinhphuoc", "xshaugiang"],
+    trung: ["xsdanang", "xsquangngai", "xsdaknong"],
+    bac: ["xsmb"],
+  },
+};
+
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const AUTO_CRAWL_ENABLED = process.env.AUTO_CRAWL !== "false";
 const AUTO_CRAWL_INTERVAL_MINUTES = Number(process.env.AUTO_CRAWL_INTERVAL_MINUTES || 1440);
@@ -156,7 +208,7 @@ function normalizeRequestedStation(value) {
   return STATION_CANONICAL_ALIASES[key] || key;
 }
 
-function getCrawlDate(now = dayjs()) {
+function getCrawlDate(now = dayjs().utcOffset(7)) {
   const switched =
     now.hour() > CRAWL_SWITCH_HOUR ||
     (now.hour() === CRAWL_SWITCH_HOUR && now.minute() >= CRAWL_SWITCH_MINUTE);
@@ -164,31 +216,6 @@ function getCrawlDate(now = dayjs()) {
   return switched
     ? now.format("YYYY-MM-DD")
     : now.subtract(1, "day").format("YYYY-MM-DD");
-}
-
-function buildKhuyenKhichFromDb(dbNumbers = []) {
-  if (!Array.isArray(dbNumbers) || dbNumbers.length === 0) {
-    return [];
-  }
-
-  const db = String(dbNumbers[0]).trim();
-  if (!/^\d{6}$/.test(db)) {
-    return [];
-  }
-
-  const firstDigit = db[0];
-  const lastFive = db.slice(1);
-  const kk = [];
-
-  for (let d = 0; d <= 9; d += 1) {
-    const digit = String(d);
-    if (digit === firstDigit) {
-      continue;
-    }
-    kk.push(`${digit}${lastFive}`);
-  }
-
-  return kk;
 }
 
 function hasPrizeData(prizes) {
@@ -212,13 +239,6 @@ async function ensureLatestResults(date, station) {
 
 async function crawlAndStore(date, station) {
   const { url, results } = await crawlLottery(date, station);
-
-  if (!results.KK || results.KK.length === 0) {
-    const generatedKk = buildKhuyenKhichFromDb(results.DB || []);
-    if (generatedKk.length > 0) {
-      results.KK = generatedKk;
-    }
-  }
 
   if (Object.keys(results).length === 0) {
     const err = new Error("Could not parse lottery results from source page");
@@ -268,6 +288,9 @@ async function runAutoCrawl() {
 
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from React build directory
+app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
 app.get("/health", (_, res) => {
   res.json({
@@ -449,39 +472,64 @@ app.get("/api/available-stations", async (req, res) => {
       });
     }
 
-    const checks = await Promise.all(
-      CANONICAL_STATIONS.map(async (station) => {
-        const url = buildResultUrl(date, station);
-        try {
-          const response = await axios.get(url, {
-            timeout: 10000,
-            validateStatus: () => true,
-            headers: {
-              "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-            },
-          });
+    const dayOfWeek = dayjs(date).day();
+    const schedule = WEEKLY_SCHEDULE[dayOfWeek];
+    if (!schedule) {
+      return res.status(400).json({ error: "Lịch ngày không hợp lệ" });
+    }
 
-          return {
-            station,
-            available: response.status === 200,
-            status: response.status,
-            url,
-          };
-        } catch {
-          return {
-            station,
-            available: false,
-            status: 0,
-            url,
-          };
-        }
-      })
-    );
+    const nowVn = dayjs().utcOffset(7);
+    const todayStr = nowVn.format("YYYY-MM-DD");
+    const isToday = date === todayStr;
+    const isPast = dayjs(date).isBefore(dayjs(todayStr));
+
+    const checkAvailability = (stationCode) => {
+      if (isPast) return true;
+      if (!isToday) return false; // Future date
+
+      const region = STATION_REGIONS[stationCode] || "nam";
+      const hour = nowVn.hour();
+      const minute = nowVn.minute();
+
+      if (region === "nam") {
+        return hour > 16 || (hour === 16 && minute >= 35);
+      }
+      if (region === "trung") {
+        return hour > 17 || (hour === 17 && minute >= 35);
+      }
+      if (region === "bac") {
+        return hour > 18 || (hour === 18 && minute >= 35);
+      }
+      return false;
+    };
+
+    const stationsList = [];
+
+    for (const st of schedule.nam) {
+      stationsList.push({
+        station: st,
+        available: checkAvailability(st),
+        url: buildResultUrl(date, st),
+      });
+    }
+    for (const st of schedule.trung) {
+      stationsList.push({
+        station: st,
+        available: checkAvailability(st),
+        url: buildResultUrl(date, st),
+      });
+    }
+    for (const st of schedule.bac) {
+      stationsList.push({
+        station: st,
+        available: checkAvailability(st),
+        url: buildResultUrl(date, st),
+      });
+    }
 
     return res.json({
       date,
-      stations: checks,
+      stations: stationsList,
     });
   } catch (error) {
     return res.status(500).json({
@@ -489,6 +537,14 @@ app.get("/api/available-stations", async (req, res) => {
       detail: error.message,
     });
   }
+});
+
+// React Client routing fallback for production deployment
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api") || req.path === "/health") {
+    return next();
+  }
+  res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
 });
 
 initDb()
