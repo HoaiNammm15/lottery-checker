@@ -227,13 +227,31 @@ function hasPrizeData(prizes) {
 }
 
 async function ensureLatestResults(date, station) {
+  const cachedPrizes = await getResultsByDateStation(date, station);
+
+  // Determine if the results in cache are already complete
+  const region = STATION_REGIONS[station] || "nam";
+  const hasDB = cachedPrizes.DB && cachedPrizes.DB.length > 0;
+  const hasLowestPrize = region === "bac"
+    ? (cachedPrizes.G7 && cachedPrizes.G7.length > 0)
+    : (cachedPrizes.G8 && cachedPrizes.G8.length > 0);
+
+  const isComplete = hasDB && hasLowestPrize;
+
+  // If complete, no need to crawl again (avoid overloading the source site)
+  if (isComplete) {
+    return;
+  }
+
+  // Otherwise (missing or partial data), crawl live for real-time updates
   try {
     await crawlAndStore(date, station);
   } catch (error) {
-    const cachedPrizes = await getResultsByDateStation(date, station);
-    if (!hasPrizeData(cachedPrizes)) {
-      throw error;
+    // If crawl fails, but we have some cached data, fall back to it
+    if (hasPrizeData(cachedPrizes)) {
+      return;
     }
+    throw error;
   }
 }
 
@@ -492,13 +510,13 @@ app.get("/api/available-stations", async (req, res) => {
       const minute = nowVn.minute();
 
       if (region === "nam") {
-        return hour > 16 || (hour === 16 && minute >= 35);
+        return hour > 16 || (hour === 16 && minute >= 15);
       }
       if (region === "trung") {
-        return hour > 17 || (hour === 17 && minute >= 35);
+        return hour > 17 || (hour === 17 && minute >= 15);
       }
       if (region === "bac") {
-        return hour > 18 || (hour === 18 && minute >= 35);
+        return hour > 18 || (hour === 18 && minute >= 15);
       }
       return false;
     };
@@ -547,29 +565,34 @@ app.get("*", (req, res, next) => {
   res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
 });
 
-initDb()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Backend listening on http://localhost:${PORT}`);
-    });
+// Export the Express app for serverless deployment (e.g. Vercel)
+module.exports = app;
 
-    if (AUTO_CRAWL_ENABLED) {
-      const minutes = Math.max(5, AUTO_CRAWL_INTERVAL_MINUTES);
-      const intervalMs = minutes * 60 * 1000;
-      runAutoCrawl().catch((error) => {
-        console.error(`[auto-crawl] initial run failed: ${error.message}`);
+if (require.main === module) {
+  initDb()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`Backend listening on http://localhost:${PORT}`);
       });
-      setInterval(() => {
+
+      if (AUTO_CRAWL_ENABLED) {
+        const minutes = Math.max(5, AUTO_CRAWL_INTERVAL_MINUTES);
+        const intervalMs = minutes * 60 * 1000;
         runAutoCrawl().catch((error) => {
-          console.error(`[auto-crawl] scheduled run failed: ${error.message}`);
+          console.error(`[auto-crawl] initial run failed: ${error.message}`);
         });
-      }, intervalMs);
-      console.log(`[auto-crawl] enabled, interval=${minutes} minutes`);
-    } else {
-      console.log("[auto-crawl] disabled");
-    }
-  })
-  .catch((error) => {
-    console.error("Failed to start backend:", error);
-    process.exit(1);
-  });
+        setInterval(() => {
+          runAutoCrawl().catch((error) => {
+            console.error(`[auto-crawl] scheduled run failed: ${error.message}`);
+          });
+        }, intervalMs);
+        console.log(`[auto-crawl] enabled, interval=${minutes} minutes`);
+      } else {
+        console.log("[auto-crawl] disabled");
+      }
+    })
+    .catch((error) => {
+      console.error("Failed to start backend:", error);
+      process.exit(1);
+    });
+}
