@@ -3,7 +3,8 @@ const sqlite3 = require("sqlite3");
 const { open } = require("sqlite");
 const dayjs = require("dayjs");
 
-const DB_PATH = path.join(__dirname, "lottery.sqlite");
+const isVercel = !!process.env.VERCEL;
+const DB_PATH = isVercel ? "/tmp/lottery.sqlite" : path.join(__dirname, "lottery.sqlite");
 
 let db;
 
