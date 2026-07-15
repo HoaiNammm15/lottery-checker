@@ -244,6 +244,7 @@ function LotteryChecker() {
   const [availableStations, setAvailableStations] = useState([]);
   const [now, setNow] = useState(new Date());
   const [isPrizeModalOpen, setIsPrizeModalOpen] = useState(false);
+  const [isResultModalOpen, setIsResultModalOpen] = useState(false);
   const tableScrollRef = useRef(null);
   const stationSelectRef = useRef(null);
 
@@ -356,14 +357,15 @@ function LotteryChecker() {
       if (!r.ok) throw new Error(d.detail || d.error || "Kiểm tra kết quả thất bại.");
       setResult(d);
       setResultAnimKey((k) => k + 1);
+      setIsResultModalOpen(true);
       if (!board) await loadBoard();
     } catch (e) { setMessage(e.message); setResult(null); }
     finally { setLoadingCheck(false); }
   }
 
-  function handleDateChange(v) { setDate(v); setResult(null); setBoard(null); setMessage(""); }
-  function handleRegionChange(r) { setRegion(r); setResult(null); setBoard(null); setMessage(""); setNumber(""); if (r === "trung") setStation(stationsTrung[0]?.value || ""); else if (r === "bac") setStation("xsmb"); else setStation(""); }
-  function handleStationChange(v) { setStation(v); setResult(null); setBoard(null); setMessage(""); }
+  function handleDateChange(v) { setDate(v); setResult(null); setBoard(null); setMessage(""); setIsResultModalOpen(false); }
+  function handleRegionChange(r) { setRegion(r); setResult(null); setBoard(null); setMessage(""); setNumber(""); setIsResultModalOpen(false); if (r === "trung") setStation(stationsTrung[0]?.value || ""); else if (r === "bac") setStation("xsmb"); else setStation(""); }
+  function handleStationChange(v) { setStation(v); setResult(null); setBoard(null); setMessage(""); setIsResultModalOpen(false); }
   function isMatchedNumber(v) { const t = number.trim(); const s = String(v); return t === s || (t.length >= s.length && t.endsWith(s)); }
 
   useEffect(() => { loadAvailableStations(date); }, [date, region]);
@@ -596,27 +598,6 @@ function LotteryChecker() {
                   <span className="mr-1.5 font-semibold">⚠</span> {message}
                 </div>
               )}
-
-              {/* Win result */}
-              {result && result.hit && (
-                <WinResult
-                  result={result}
-                  prizeLabels={prizeLabels}
-                  winningAmount={winningAmount}
-                  taxPerTicket={taxPerTicket}
-                  netAmountPerTicket={netAmountPerTicket}
-                  quantityValue={quantityValue}
-                  totalWinningAmount={totalWinningAmount}
-                  totalTaxAmount={totalTaxAmount}
-                  totalNetAmount={totalNetAmount}
-                  formatCurrency={formatCurrency}
-                  animKey={resultAnimKey}
-                />
-              )}
-
-              {result && !result.hit && (
-                <LoseResult animKey={resultAnimKey} />
-              )}
             </div>
           </section>
 
@@ -770,6 +751,47 @@ function LotteryChecker() {
                 </table>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════ Result Modal (Win / Lose Popup) ═══════════ */}
+      {isResultModalOpen && result && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 py-6">
+          {/* Backdrop */}
+          <div
+            className="animate-modal-backdrop absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
+            onClick={() => setIsResultModalOpen(false)}
+          />
+
+          {/* Modal content */}
+          <div className="relative z-10 w-full max-w-lg">
+            {/* Close button floating top-right */}
+            <button
+              type="button"
+              onClick={() => setIsResultModalOpen(false)}
+              className="absolute -right-2 -top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-400 shadow-lg transition hover:bg-slate-100 hover:text-slate-700"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            {result.hit ? (
+              <WinResult
+                result={result}
+                prizeLabels={prizeLabels}
+                winningAmount={winningAmount}
+                taxPerTicket={taxPerTicket}
+                netAmountPerTicket={netAmountPerTicket}
+                quantityValue={quantityValue}
+                totalWinningAmount={totalWinningAmount}
+                totalTaxAmount={totalTaxAmount}
+                totalNetAmount={totalNetAmount}
+                formatCurrency={formatCurrency}
+                animKey={resultAnimKey}
+              />
+            ) : (
+              <LoseResult animKey={resultAnimKey} />
+            )}
           </div>
         </div>
       )}
