@@ -1,5 +1,119 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, Table2, X, CalendarDays, MapPin, Star, Download, Award, Ticket, Hash, ChevronDown } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Search, Table2, X, CalendarDays, MapPin, Star, Download, Award, Ticket, Hash, ChevronDown, Trophy, Frown, PartyPopper } from "lucide-react";
+
+/* ────────────────── Confetti Component ────────────────── */
+
+const CONFETTI_COLORS = [
+  "#10b981", "#f59e0b", "#3b82f6", "#ec4899", "#8b5cf6",
+  "#14b8a6", "#f97316", "#06b6d4", "#e11d48", "#a855f7",
+];
+
+function ConfettiOverlay({ count = 40 }) {
+  const pieces = useMemo(() => {
+    return Array.from({ length: count }, (_, i) => ({
+      id: i,
+      left: `${Math.random() * 100}%`,
+      delay: `${Math.random() * 1.2}s`,
+      duration: `${1.8 + Math.random() * 1.5}s`,
+      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+      size: 5 + Math.random() * 6,
+      shape: Math.random() > 0.5 ? "50%" : "2px",
+    }));
+  }, [count]);
+
+  return (
+    <div className="confetti-container">
+      {pieces.map((p) => (
+        <div
+          key={p.id}
+          className="confetti-piece"
+          style={{
+            left: p.left,
+            animationDelay: p.delay,
+            animationDuration: p.duration,
+            backgroundColor: p.color,
+            width: p.size,
+            height: p.size,
+            borderRadius: p.shape,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ────────────────── Win Result Component ────────────────── */
+
+function WinResult({ result, prizeLabels, winningAmount, taxPerTicket, netAmountPerTicket, quantityValue, totalWinningAmount, totalTaxAmount, totalNetAmount, formatCurrency, animKey }) {
+  return (
+    <div key={animKey} className="relative overflow-hidden">
+      <ConfettiOverlay count={45} />
+      <div className="animate-win-entrance animate-glow-pulse rounded-2xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 p-5">
+        {/* Header with trophy */}
+        <div className="mb-4 flex items-start gap-3">
+          <div className="relative">
+            <span className="animate-trophy-bounce flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-200">
+              <Trophy className="h-6 w-6" />
+            </span>
+            {/* Sparkle dots */}
+            <span className="sparkle-dot -right-1 -top-1 bg-amber-400" style={{ animationDelay: "0s" }} />
+            <span className="sparkle-dot -left-1.5 top-2 bg-cyan-400" style={{ animationDelay: "0.5s" }} />
+            <span className="sparkle-dot -bottom-0.5 right-0 bg-pink-400" style={{ animationDelay: "1s" }} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="text-lg font-extrabold text-emerald-900">Chúc mừng! Vé trúng giải! 🎉</p>
+            </div>
+            <p className="mt-0.5 text-sm text-emerald-700">
+              Các giải trúng: <strong>{result.prizes.map((p) => prizeLabels[p] || p).join(", ")}</strong>
+            </p>
+          </div>
+        </div>
+
+        {/* Prize details with staggered count-up animation */}
+        <div className="space-y-1.5 text-sm text-emerald-800">
+          <p className="animate-count-up" style={{ animationDelay: "0.2s", opacity: 0 }}>
+            Tiền thưởng 1 vé: <strong className="text-emerald-900">{formatCurrency(winningAmount)}</strong>
+          </p>
+          <p className="animate-count-up" style={{ animationDelay: "0.35s", opacity: 0 }}>
+            Thuế TNCN 1 vé: <strong>{formatCurrency(taxPerTicket)}</strong>
+          </p>
+          <p className="animate-count-up" style={{ animationDelay: "0.5s", opacity: 0 }}>
+            Nhận về 1 vé: <strong>{formatCurrency(netAmountPerTicket)}</strong>
+          </p>
+          <div className="animate-count-up mt-3 border-t border-emerald-200/60 pt-3" style={{ animationDelay: "0.65s", opacity: 0 }}>
+            <p>Tổng thưởng ({quantityValue} vé): <strong className="text-base">{formatCurrency(totalWinningAmount)}</strong></p>
+            <p className="mt-1">Tổng thuế: <strong>{formatCurrency(totalTaxAmount)}</strong></p>
+            <p className="mt-2 text-lg font-extrabold text-emerald-900">
+              💰 Tổng nhận thực tế: {formatCurrency(totalNetAmount)}
+            </p>
+          </div>
+        </div>
+        <p className="mt-3 text-[11px] text-emerald-700/70">Ghi chú: Thuế tính trên phần giá trị trúng vượt 10.000.000đ của mỗi giải lẻ trên vé.</p>
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────── Lose Result Component ────────────────── */
+
+function LoseResult({ animKey }) {
+  return (
+    <div key={animKey} className="animate-lose-entrance">
+      <div className="animate-shake rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-stone-50 p-5">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-200 text-slate-500">
+            <Frown className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="font-semibold text-slate-700">Rất tiếc, vé của bạn không trúng giải nào.</p>
+            <p className="mt-0.5 text-xs text-slate-400">Chúc bạn may mắn lần sau! 🍀</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ────────────────── Station Data ────────────────── */
 
@@ -125,6 +239,7 @@ function LotteryChecker() {
   const [loadingStations, setLoadingStations] = useState(false);
   const [message, setMessage] = useState("");
   const [result, setResult] = useState(null);
+  const [resultAnimKey, setResultAnimKey] = useState(0);
   const [board, setBoard] = useState(null);
   const [availableStations, setAvailableStations] = useState([]);
   const [now, setNow] = useState(new Date());
@@ -240,6 +355,7 @@ function LotteryChecker() {
       const d = await readJsonSafe(r);
       if (!r.ok) throw new Error(d.detail || d.error || "Kiểm tra kết quả thất bại.");
       setResult(d);
+      setResultAnimKey((k) => k + 1);
       if (!board) await loadBoard();
     } catch (e) { setMessage(e.message); setResult(null); }
     finally { setLoadingCheck(false); }
@@ -483,32 +599,23 @@ function LotteryChecker() {
 
               {/* Win result */}
               {result && result.hit && (
-                <div className="animate-fade-up rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-5">
-                  <div className="mb-3 flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white">
-                      <Star className="h-4 w-4" />
-                    </span>
-                    <p className="text-base font-bold text-emerald-900">Chúc mừng! Vé trúng giải.</p>
-                  </div>
-                  <div className="space-y-1.5 text-sm text-emerald-800">
-                    <p>Các giải trúng: <strong>{result.prizes.map((p) => prizeLabels[p] || p).join(", ")}</strong></p>
-                    <p>Tiền thưởng 1 vé: <strong>{formatCurrency(winningAmount)}</strong></p>
-                    <p>Thuế TNCN 1 vé: <strong>{formatCurrency(taxPerTicket)}</strong></p>
-                    <p>Nhận về 1 vé: <strong>{formatCurrency(netAmountPerTicket)}</strong></p>
-                    <div className="mt-2 border-t border-emerald-200/60 pt-2">
-                      <p>Tổng thưởng ({quantityValue} vé): <strong className="text-base">{formatCurrency(totalWinningAmount)}</strong></p>
-                      <p>Tổng thuế: <strong>{formatCurrency(totalTaxAmount)}</strong></p>
-                      <p className="text-base font-extrabold text-emerald-900">Tổng nhận thực tế: {formatCurrency(totalNetAmount)}</p>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-[11px] text-emerald-700/70">Ghi chú: Thuế tính trên phần giá trị trúng vượt 10.000.000đ của mỗi giải lẻ trên vé.</p>
-                </div>
+                <WinResult
+                  result={result}
+                  prizeLabels={prizeLabels}
+                  winningAmount={winningAmount}
+                  taxPerTicket={taxPerTicket}
+                  netAmountPerTicket={netAmountPerTicket}
+                  quantityValue={quantityValue}
+                  totalWinningAmount={totalWinningAmount}
+                  totalTaxAmount={totalTaxAmount}
+                  totalNetAmount={totalNetAmount}
+                  formatCurrency={formatCurrency}
+                  animKey={resultAnimKey}
+                />
               )}
 
               {result && !result.hit && (
-                <div className="animate-fade-up rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                  Rất tiếc, vé của bạn không trúng giải nào.
-                </div>
+                <LoseResult animKey={resultAnimKey} />
               )}
             </div>
           </section>
@@ -569,7 +676,7 @@ function LotteryChecker() {
                                     key={`${prize}-${item}`}
                                     className={`inline-block rounded-md px-2 py-0.5 font-mono text-sm tracking-wide ${
                                       hit
-                                        ? "bg-emerald-200 font-bold text-emerald-900"
+                                        ? "animate-number-highlight bg-emerald-200 font-bold text-emerald-900 ring-2 ring-emerald-300"
                                         : isDB
                                           ? "font-bold text-red-600"
                                           : ""

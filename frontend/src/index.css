@@ -44,3 +44,162 @@ body {
 .nav-indicator {
   animation: nav-slide 0.25s ease-out;
 }
+
+/* ─── Win Celebration Animations ─── */
+
+/* Confetti piece falling */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-10px) rotate(0deg) scale(0);
+    opacity: 1;
+  }
+  10% {
+    transform: translateY(0) rotate(30deg) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(420px) rotate(720deg) scale(0.6);
+    opacity: 0;
+  }
+}
+
+/* Gold shimmer glow behind the win card */
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 15px rgba(16, 185, 129, 0.15),
+      0 0 40px rgba(16, 185, 129, 0.06);
+  }
+  50% {
+    box-shadow:
+      0 0 25px rgba(16, 185, 129, 0.3),
+      0 0 60px rgba(16, 185, 129, 0.12);
+  }
+}
+
+/* Trophy bounce */
+@keyframes trophy-bounce {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  15% { transform: scale(1.25) rotate(-8deg); }
+  30% { transform: scale(1.15) rotate(6deg); }
+  45% { transform: scale(1.2) rotate(-4deg); }
+  60% { transform: scale(1.1) rotate(2deg); }
+  75% { transform: scale(1.05) rotate(0deg); }
+}
+
+/* Slide-in with bounce for win card */
+@keyframes win-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-6px) scale(1.01);
+  }
+  70% {
+    transform: translateY(2px) scale(0.995);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Number counter rolling feel */
+@keyframes count-up {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Sparkle twinkle */
+@keyframes sparkle {
+  0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1) rotate(180deg); }
+}
+
+/* ─── Lose Animations ─── */
+
+/* Gentle head-shake */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-6px); }
+  30% { transform: translateX(5px); }
+  45% { transform: translateX(-4px); }
+  60% { transform: translateX(3px); }
+  75% { transform: translateX(-2px); }
+}
+
+/* Fade-in with slight down movement */
+@keyframes lose-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Animation utility classes ─── */
+
+.animate-win-entrance {
+  animation: win-entrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2.5s ease-in-out infinite;
+}
+
+.animate-trophy-bounce {
+  animation: trophy-bounce 0.8s ease-in-out;
+}
+
+.animate-count-up {
+  animation: count-up 0.5s ease-out forwards;
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+.animate-lose-entrance {
+  animation: lose-entrance 0.4s ease-out forwards;
+}
+
+/* Confetti container */
+.confetti-container {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 10;
+}
+.confetti-piece {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: confetti-fall 2.5s ease-in forwards;
+}
+
+/* Sparkle dots around trophy */
+.sparkle-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: sparkle 1.5s ease-in-out infinite;
+}
+
+/* Matched number pulse in the results table */
+@keyframes number-highlight {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.animate-number-highlight {
+  animation: number-highlight 0.6s ease-in-out;
+}
